@@ -3,40 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Scan & Foto</title>
+    <title>Dashboard Scan & Foto Produk</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: sans-serif; padding: 15px; background: #f0f2f5; }
-        .container { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        #reader { width: 100%; border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
-        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
-        button { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
-        #photo-preview { width: 100%; border-radius: 10px; display: none; margin-top: 10px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #f0f2f5; color: #333; }
+        .container { max-width: 450px; margin: auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #1a73e8; margin-bottom: 20px; }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; margin-bottom: 15px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9em; }
+        input[type="text"] { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; background: #fafafa; }
+        input[type="file"] { margin-bottom: 10px; }
+        button { width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #photo-preview { width: 100%; border-radius: 12px; display: none; margin-top: 15px; border: 1px solid #ddd; }
+        .status-msg { text-align: center; margin-top: 10px; font-size: 0.9em; color: #666; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h3 style="text-align: center;">Dashboard Inventaris</h3>
+    <h2>Dashboard Inventaris</h2>
+    
     <div id="reader"></div>
     
-    <input type="text" id="barcode-result" placeholder="Hasil Barcode #BTRSXK8Z">
-    <input type="file" accept="image/*" capture="environment" id="photo-input">
-    <img id="photo-preview" src="#">
+    <div class="input-group">
+        <label>Kode Barcode:</label>
+        <input type="text" id="barcode-result" placeholder="Hasil scan #BTRSXK8Z">
+    </div>
+
+    <div class="input-group">
+        <label>Ambil Foto Produk:</label>
+        <input type="file" accept="image/*" capture="environment" id="photo-input">
+        <img id="photo-preview" src="" alt="Preview">
+    </div>
     
     <button id="btn-simpan" onclick="uploadData()">Kirim ke Google Sheets</button>
+    <p id="status-text" class="status-msg">Siap memindai...</p>
 </div>
 
 <script>
-    // Scanner yang mendukung Code 128 (barcode batang)
+    // Konfigurasi URL Apps Script Anda (Sudah dengan tanda kutip yang benar)
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbzyIifeM4EO0tvm2Hm9lKNh2w6WRPRjQUr7WrXDbzelG-n8nxcG4mPbEXqWxkrpRVtQ/exec';
+
+    // Inisialisasi Scanner untuk mendukung Barcode Batang (Code 128)
     const html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 15, qrbox: { width: 280, height: 150 } };
+    const config = { 
+        fps: 20, 
+        qrbox: { width: 300, height: 150 }, // Box persegi panjang cocok untuk barcode batang
+        aspectRatio: 1.0 
+    };
 
-    html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-        document.getElementById('barcode-result').value = decodedText;
-        vibratePhone(); // Efek getar saat berhasil
-    }).catch(err => console.error(err));
+    // Mulai Kamera
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        (decodedText) => {
+            document.getElementById('barcode-result').value = decodedText;
+            document.getElementById('status-text').innerText = "Barcode terdeteksi!";
+            if (navigator.vibrate) navigator.vibrate(100); // Getar HP
+        }
+    ).catch(err => {
+        document.getElementById('status-text').innerText = "Kamera tidak terdeteksi.";
+    });
 
+    // Menangani Preview Foto
     const photoInput = document.getElementById('photo-input');
     const photoPreview = document.getElementById('photo-preview');
     let base64Image = "";
@@ -48,33 +79,39 @@
             base64Image = reader.result;
             photoPreview.src = base64Image;
             photoPreview.style.display = 'block';
+            document.getElementById('status-text').innerText = "Foto siap dikirim.";
         };
-        reader.readAsDataURL(file);
+        if (file) reader.readAsDataURL(file);
     };
 
-    function vibratePhone() { if (navigator.vibrate) navigator.vibrate(100); }
-
+    // Fungsi Mengirim Data
     async function uploadData() {
         const barcode = document.getElementById('barcode-result').value;
         const btn = document.getElementById('btn-simpan');
+        const status = document.getElementById('status-text');
         
-        if (!barcode || !base64Image) return alert("Scan barcode dan ambil foto dulu!");
+        if (!barcode) return alert("Scan barcode terlebih dahulu!");
+        if (!base64Image) return alert("Ambil foto produk terlebih dahulu!");
         
-        btn.innerText = "Mengirim...";
+        btn.innerText = "Sedang Mengirim...";
         btn.disabled = true;
-
-        // URL Web App dari Apps Script nanti diletakkan di sini
-        const scriptURL = 'MASUKKAN_URL_SCRIPT_DI_SINI';
+        status.innerText = "Menghubungkan ke database...";
 
         try {
-            await fetch(scriptURL, {
+            const response = await fetch(scriptURL, {
                 method: 'POST',
+                mode: 'no-cors', // Penting untuk Apps Script
+                cache: 'no-cache',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ barcode: barcode, image: base64Image })
             });
-            alert("Data Berhasil Disimpan!");
+            
+            alert("Data Berhasil Disimpan ke Google Sheets!");
+            // Reset form setelah berhasil
             location.reload();
         } catch (e) {
-            alert("Gagal menyimpan. Pastikan URL Apps Script sudah benar.");
+            console.error(e);
+            alert("Error: Gagal mengirim data. Cek koneksi atau settingan Anyone di Apps Script.");
             btn.disabled = false;
             btn.innerText = "Kirim ke Google Sheets";
         }
