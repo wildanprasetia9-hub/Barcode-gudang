@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Scan & Foto</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: sans-serif; padding: 15px; background: #f0f2f5; }
+        .container { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        #reader { width: 100%; border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
+        #photo-preview { width: 100%; border-radius: 10px; display: none; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h3 style="text-align: center;">Dashboard Inventaris</h3>
+    <div id="reader"></div>
+    
+    <input type="text" id="barcode-result" placeholder="Hasil Barcode #BTRSXK8Z">
+    <input type="file" accept="image/*" capture="environment" id="photo-input">
+    <img id="photo-preview" src="#">
+    
+    <button id="btn-simpan" onclick="uploadData()">Kirim ke Google Sheets</button>
+</div>
+
+<script>
+    // Scanner yang mendukung Code 128 (barcode batang)
+    const html5QrCode = new Html5Qrcode("reader");
+    const config = { fps: 15, qrbox: { width: 280, height: 150 } };
+
+    html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
+        document.getElementById('barcode-result').value = decodedText;
+        vibratePhone(); // Efek getar saat berhasil
+    }).catch(err => console.error(err));
+
+    const photoInput = document.getElementById('photo-input');
+    const photoPreview = document.getElementById('photo-preview');
+    let base64Image = "";
+
+    photoInput.onchange = () => {
+        const file = photoInput.files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            base64Image = reader.result;
+            photoPreview.src = base64Image;
+            photoPreview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    };
+
+    function vibratePhone() { if (navigator.vibrate) navigator.vibrate(100); }
+
+    async function uploadData() {
+        const barcode = document.getElementById('barcode-result').value;
+        const btn = document.getElementById('btn-simpan');
+        
+        if (!barcode || !base64Image) return alert("Scan barcode dan ambil foto dulu!");
+        
+        btn.innerText = "Mengirim...";
+        btn.disabled = true;
+
+        // URL Web App dari Apps Script nanti diletakkan di sini
+        const scriptURL = 'MASUKKAN_URL_SCRIPT_DI_SINI';
+
+        try {
+            await fetch(scriptURL, {
+                method: 'POST',
+                body: JSON.stringify({ barcode: barcode, image: base64Image })
+            });
+            alert("Data Berhasil Disimpan!");
+            location.reload();
+        } catch (e) {
+            alert("Gagal menyimpan. Pastikan URL Apps Script sudah benar.");
+            btn.disabled = false;
+            btn.innerText = "Kirim ke Google Sheets";
+        }
+    }
+</script>
+</body>
+</html>
